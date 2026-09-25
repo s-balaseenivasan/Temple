@@ -1,0 +1,507 @@
+@import "tailwindcss";
+
+/*
+ * Temple design system tokens.
+ * Palette: deep kumkum maroon + warm saffron + antique gold on an ivory
+ * "paper" base. The public site reads like a temple almanac — editorial
+ * serif headings, hairline rules and arched shrine-niche image frames —
+ * rather than a stack of rounded cards. Dark mode is explicitly out of scope
+ * for this build (DESIGN_SYSTEM.md).
+ */
+:root {
+  --primary: #7a2215; /* deep kumkum maroon */
+  --primary-dark: #4f160d;
+  /* Ink for the darkest public surfaces (footer, donation band) — a
+     maroon-black rather than neutral black, so it stays in-palette. */
+  --ink: #2b120b;
+  /* Darkened from the more vivid #b45309 after axe-core measured only a
+     4.37:1 contrast ratio at 14px against the --surface-muted panel
+     background — this shade holds 6.3:1+ against every background it's
+     used on (cream, white, muted panels) with margin to spare. */
+  --secondary: #8f4006; /* warm saffron/amber */
+  --gold: #d4a447; /* antique gold */
+  --gold-light: #f5c542;
+
+  --background: #faf5ec; /* ivory paper */
+  --surface: #ffffff;
+  --surface-muted: #f3e8d5; /* soft sand */
+
+  --text-primary: #2a1a12; /* charcoal/deep brown */
+  --text-secondary: #65564a;
+
+  --border: #e3d3b6;
+  /* Darkened from #15803d after axe-core measured only 4.38:1 for the
+     StatusBadge "success" pill (text-success on a bg-success/10 tint) — this
+     shade clears 4.5:1+ against that same tint with margin. */
+  --success: #0f7a33;
+  --error: #b91c1c;
+
+  /* --font-serif / --font-sans / --font-tamil* are set by next/font on
+     <html> (see app/layout.tsx). Never redeclare them here: a
+     `--font-serif: var(--font-serif)` self-reference on :root is a cycle,
+     which makes the variable invalid and silently drops every heading back
+     to the sans fallback. */
+}
+
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-ink: var(--ink);
+  --color-secondary: var(--secondary);
+  --color-gold: var(--gold);
+  --color-gold-light: var(--gold-light);
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border: var(--border);
+  --color-success: var(--success);
+  --color-error: var(--error);
+  --font-sans: var(--font-sans);
+  --font-tamil: var(--font-tamil);
+  --font-display: var(--font-serif);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+.font-tamil {
+  font-family: var(--font-tamil), var(--font-sans), sans-serif;
+  line-height: 1.7;
+}
+
+/* Elegant heading serif for Latin text only — Tamil script has no equivalent
+   in Fraunces. */
+.font-display {
+  font-family: var(--font-serif), Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+/* Tamil headings: Catamaran (DESIGN_SYSTEM.md §3) — a display-weight Tamil
+   face that holds its own next to Fraunces, instead of body Noto Sans Tamil
+   set bold. Scoped to headings (and the explicit utility) so every existing
+   `locale === "ta" ? "font-tamil" : "font-display"` heading picks it up
+   without per-call-site changes. */
+:is(h1, h2, h3).font-tamil,
+.font-tamil-display {
+  font-family: var(--font-tamil-display), var(--font-tamil), sans-serif;
+  line-height: 1.35;
+}
+
+/* Subtle kolam-inspired dot-grid, used sparingly as a background texture
+   behind hero/section panels — never as a foreground element. */
+.pattern-kolam {
+  background-image: radial-gradient(var(--gold) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+@layer components {
+  /* Centered page column with symmetric gutters. Horizontal padding only —
+     vertical rhythm belongs to the section, so the two never fight. */
+  .page-container {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 1200px;
+    padding-inline: 20px;
+  }
+  @media (min-width: 640px) {
+    .page-container {
+      padding-inline: 32px;
+    }
+  }
+
+  /* One vertical rhythm used at every section seam. */
+  .section-y {
+    padding-block: clamp(64px, 9vw, 112px);
+  }
+
+  /* Small tracked-caps label above a heading — the editorial "dateline". */
+  .kicker {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--secondary);
+  }
+  .kicker.font-tamil {
+    letter-spacing: 0.02em;
+    font-size: 0.8125rem;
+  }
+
+  /* Short accent rule — the section separator, never a full-width line. */
+  .accent-rule {
+    display: block;
+    height: 2px;
+    width: 48px;
+    border-radius: 999px;
+    background: var(--primary);
+  }
+
+  /* Arched shrine-niche frame for deity/hero/history imagery. */
+  .arch {
+    border-radius: 999px 999px 14px 14px;
+    overflow: hidden;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    padding: 0.5rem 1.25rem;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    /* Tamil labels run long and can wrap to two lines on phones — keep
+       them centred and tightly leaded inside the pill. */
+    line-height: 1.3;
+    text-align: center;
+    transition:
+      background-color 0.2s,
+      color 0.2s,
+      border-color 0.2s,
+      transform 0.2s;
+  }
+  .btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  .btn-primary {
+    background: var(--primary);
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--primary-dark);
+  }
+  .btn-outline {
+    border: 1px solid var(--primary);
+    color: var(--primary);
+  }
+  .btn-outline:hover {
+    background: var(--primary);
+    color: #fff;
+  }
+  .btn-gold {
+    background: var(--gold-light);
+    color: var(--ink);
+  }
+  .btn-gold:hover:not(:disabled) {
+    background: var(--gold);
+  }
+
+  /* Text link with a trailing arrow that nudges on hover. */
+  .link-arrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--primary);
+    text-underline-offset: 4px;
+  }
+  .link-arrow:hover {
+    text-decoration: underline;
+  }
+  .link-arrow > svg {
+    transition: transform 0.2s;
+  }
+  .link-arrow:hover > svg {
+    transform: translateX(3px);
+  }
+
+  .form-label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .form-input {
+    width: 100%;
+    min-height: 44px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 0.625rem 0.875rem;
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+    transition:
+      border-color 0.15s,
+      box-shadow 0.15s;
+  }
+  .form-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+  .form-error {
+    margin-top: 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--error);
+  }
+
+  /* Paper panel: white surface, hairline border, no drop shadow at rest. */
+  .panel {
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  /* ---- Admin density variants (DESIGN_SYSTEM.md: "calmer, denser, more
+     neutral" — same brand, tighter controls for repetitive data entry). */
+  .btn-sm {
+    min-height: 38px;
+    padding: 0.375rem 0.875rem;
+    border-radius: 10px;
+    font-size: 0.8125rem;
+  }
+  .btn-xs {
+    min-height: 30px;
+    padding: 0.25rem 0.625rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+  }
+  .btn-danger {
+    border: 1px solid color-mix(in srgb, var(--error) 45%, transparent);
+    color: var(--error);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: var(--error);
+    color: #fff;
+  }
+  .admin-input {
+    width: 100%;
+    min-height: 38px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 0.4375rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    transition:
+      border-color 0.15s,
+      box-shadow 0.15s;
+  }
+  .admin-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
+  }
+  .admin-label {
+    display: block;
+    margin-bottom: 0.3125rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .admin-title {
+    font-family: var(--font-serif), Georgia, serif;
+    font-size: 1.75rem;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+  }
+  .admin-panel {
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 1.5rem;
+  }
+  .admin-thead {
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface-muted) 45%, var(--surface));
+    text-align: left;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+  .admin-link {
+    font-weight: 500;
+    color: var(--primary);
+    text-underline-offset: 3px;
+  }
+  .admin-link:hover {
+    text-decoration: underline;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.5s ease-out both;
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out both;
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-modal-in {
+  animation: modal-in 0.25s ease-out both;
+}
+
+/* Scroll-reveal: starts invisible/offset, and only plays its entrance once
+   the <Reveal> wrapper's IntersectionObserver adds .is-visible — never
+   replays on every scroll pass, so it reads as a one-time "welcome" rather
+   than a distracting repeated effect.
+
+   Deliberately NOT on this base class: `transition`. Next.js server-renders
+   the hidden state (opacity:0) into the initial HTML, and the browser
+   paints that raw HTML before React's JS has even loaded — a real, distinct
+   paint that no client-side timing trick (useLayoutEffect included) can
+   erase after the fact. If `transition` lived here, hydration flipping the
+   class to .is-visible would animate FROM that already-painted opacity:0
+   frame regardless of how fast hydration ran, which is exactly what caused
+   a real bug: axe-core caught still-fading, sub-4.5:1-contrast text on a
+   page whose reveal-wrapped content sits above the fold. `.reveal-animate`
+   below opts a specific instance into the transition, and <Reveal> only
+   applies it when the element was NOT already on-screen at mount — i.e.
+   only for a genuine scroll-triggered reveal, never for content visible
+   immediately on load. */
+.reveal {
+  /* visibility (not just opacity) hides the pre-reveal state — axe-core (and
+     real low-vision users landing mid-scroll) correctly flags opacity-only
+     hiding as a severe color-contrast violation, since opacity:0 text is
+     still in the accessibility tree and its blended rendered color measures
+     as near-unreadable. */
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.reveal-animate {
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.reveal.is-visible {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    visibility: visible;
+    opacity: 1;
+    transform: none;
+  }
+
+  .reveal-animate {
+    transition: none;
+  }
+}
+
+/* Admin page entrance — a one-time "settle into place" on every navigation
+   (the page content remounts per-route even though the sidebar shell
+   persists). Deliberately transform-only, never opacity: admin pages are
+   scanned by the same axe-core suite that caught the public-site reveal
+   contrast bug, and opacity animations risk the exact same failure mode if
+   the scan runs mid-fade. A pure translateY has no color/contrast
+   implication at any point in the animation, so there's nothing for a
+   contrast check to catch regardless of timing — and it's a plain CSS
+   `animation`, not a JS-toggled `transition`, so it doesn't depend on
+   hydration timing either. */
+@keyframes admin-settle {
+  from {
+    transform: translateY(6px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-admin-in {
+  animation: admin-settle 0.3s ease-out both;
+}
+
+/* Themed, always-visible thin scrollbar for the admin sidebar's nav list.
+   Found via a real headed-browser screenshot at a realistic 668px window
+   height: the default OS scrollbar was thin/auto-hiding enough that the
+   sidebar looked like it simply ended after "Contact Enquiries", with the
+   entire Finance/Configuration/Super Admin sections silently unreachable.
+   A visible themed scrollbar plus the sidebar's own scroll-active-into-view
+   behavior (see admin-sidebar.tsx) fixes both the discoverability and the
+   "where am I" problem together. */
+.admin-nav-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.admin-nav-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.admin-nav-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-nav-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 999px;
+}
+
+.admin-nav-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--gold);
+}

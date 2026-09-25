@@ -1,0 +1,664 @@
+// Prisma schema for Sri Gurusamy Sri Ananthammal Temple Website & Donation Platform
+// Source of truth: blueprint/DATA_MODEL.md (ENT-01..ENT-22) + blueprint/_CONTEXT_BRIEF.md §11 (CR-004)
+// Do not add fields/entities not traceable to the blueprint without logging a CHANGE_CONTROL entry.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────
+
+enum AdminRole {
+  SuperAdmin
+  TempleAdmin
+}
+
+enum AdminStatus {
+  active
+  inactive
+}
+
+enum ContentStatus {
+  draft
+  published
+  archived
+}
+
+enum EventStatus {
+  draft
+  published
+  archived
+  cancelled
+}
+
+enum ActiveInactive {
+  active
+  inactive
+}
+
+enum DonationStatus {
+  pending
+  success
+  failed
+  refunded
+}
+
+enum DonationType {
+  cash_online
+  cash_offline
+  in_kind_goods
+  in_kind_land
+}
+
+enum PaymentProviderName {
+  razorpay
+  payu
+  cashfree
+  instamojo
+  mock
+}
+
+enum PaymentStatus {
+  initiated
+  success
+  failed
+}
+
+enum ContactEnquirerType {
+  pangali
+  bhaktar
+}
+
+enum ContactEnquiryStatus {
+  new
+  responded
+  closed
+}
+
+enum HistoryEntryStatus {
+  draft
+  published
+}
+
+enum MemberRequestType {
+  registration
+  family_update
+  contact_update
+  matrimony_update
+}
+
+enum MemberRequestStatus {
+  new
+  in_review
+  completed
+  rejected
+}
+
+enum DocumentCategory {
+  registration_info
+  bylaws
+  agm_report
+  annual_activity_report
+  public_notice
+}
+
+enum DocumentStatus {
+  draft
+  published
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-01 SiteSettings (singleton)
+// ─────────────────────────────────────────────────────────────────────────
+
+model SiteSettings {
+  id      String @id @default(uuid())
+  // singleton row id is a fixed constant, enforced at the service layer, not by schema
+
+  templeName_en String
+  templeName_ta String?
+  addressLine_en String
+  addressLine_ta String?
+  phone         String
+  email         String?
+  heroImage     String?
+  mapLatitude   Decimal? @db.Decimal(9, 6)
+  mapLongitude  Decimal? @db.Decimal(9, 6)
+
+  // { morning: {open, close}, evening: {open, close}, specialDayOverrides: [{date, open, close, note_en, note_ta}] }
+  timingsJson      Json    @default("{}")
+  socialLinksJson  Json?
+
+  is80GRegistered      Boolean  @default(false)
+  registration80GNumber String?
+
+  activeLanguages String[] @default(["en", "ta"])
+
+  historyIntro_en String @default("")
+  historyIntro_ta String?
+
+  adminStructureNote_en String @default("")
+  adminStructureNote_ta String?
+
+  bhakthaSabhaIntro_en String @default("")
+  bhakthaSabhaIntro_ta String?
+
+  transparencyNote_en String @default("")
+  transparencyNote_ta String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-02 AdminUser
+// ─────────────────────────────────────────────────────────────────────────
+
+model AdminUser {
+  id           String      @id @default(uuid())
+  name         String
+  email        String      @unique
+  phone        String?
+  passwordHash String
+  role         AdminRole
+  status       AdminStatus @default(active)
+  lastLoginAt  DateTime?
+  // FEAT-074: account lockout after repeated failed attempts (blueprint
+  // ASSUMPTION — standard security practice, not explicitly requested).
+  failedLoginAttempts Int      @default(0)
+  lockedUntil         DateTime?
+  // FEAT-071: password reset. Only a SHA-256 hash of the reset token is
+  // stored (never the raw token, matching passwordHash's own never-store-
+  // plaintext-secrets posture) — a fast hash is correct here, not bcrypt,
+  // because the token itself already has 256 bits of random entropy (unlike
+  // a user-chosen password, which needs bcrypt specifically to compensate
+  // for low entropy).
+  passwordResetTokenHash String?
+  passwordResetExpiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  authoredNews         News[]            @relation("NewsAuthor")
+  issuedReceipts       Receipt[]         @relation("ReceiptIssuedBy")
+  auditLogs            AuditLog[]        @relation("AuditActor")
+  handledEnquiries     ContactEnquiry[]  @relation("EnquiryHandledBy")
+  handledMemberRequests MemberRequest[]  @relation("MemberRequestHandledBy")
+  recordedDonations    Donation[]        @relation("DonationRecordedBy")
+
+  @@index([email])
+  @@map("admin_users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-03 Designation (lookup)
+// ─────────────────────────────────────────────────────────────────────────
+
+model Designation {
+  id        String   @id @default(uuid())
+  name_en   String   @unique
+  name_ta   String?
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  committeeMembers CommitteeMember[]
+
+  @@map("designations")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-04 CommitteeMember
+// ─────────────────────────────────────────────────────────────────────────
+
+model CommitteeMember {
+  id                  String         @id @default(uuid())
+  photo               String?
+  name_en             String
+  name_ta             String?
+  designationId       String
+  designation         Designation    @relation(fields: [designationId], references: [id], onDelete: Restrict)
+  mobile              String
+  publicMobileVisible Boolean        @default(false)
+  email               String?
+  bio_en              String?
+  bio_ta              String?
+  displayOrder        Int            @default(0)
+  status              ActiveInactive @default(active)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([designationId])
+  @@map("committee_members")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-05 News
+// ─────────────────────────────────────────────────────────────────────────
+
+model News {
+  id            String        @id @default(uuid())
+  title_en      String
+  title_ta      String?
+  body_en       String
+  body_ta       String?
+  featuredImage String?
+  publishedAt   DateTime?
+  authorId      String
+  author        AdminUser     @relation("NewsAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  category      String?
+  status        ContentStatus @default(draft)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([authorId])
+  @@map("news")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-06 EventCategory
+// ─────────────────────────────────────────────────────────────────────────
+
+model EventCategory {
+  id      String  @id @default(uuid())
+  name_en String  @unique
+  name_ta String?
+  active  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events Event[]
+
+  @@map("event_categories")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-07 Event
+// ─────────────────────────────────────────────────────────────────────────
+
+model Event {
+  id                      String        @id @default(uuid())
+  name_en                 String
+  name_ta                 String?
+  description_en          String?
+  description_ta          String?
+  eventDate               DateTime      @db.Date
+  startTime               String?
+  endTime                 String?
+  categoryId              String
+  category                EventCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  posterImage             String?
+  location_en             String?
+  location_ta             String?
+  specialInstructions_en  String?
+  specialInstructions_ta  String?
+  contactPersonName       String?
+  contactNumber           String?
+  registrationRequired    Boolean       @default(false)
+  status                  EventStatus   @default(draft)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventDate])
+  @@index([status])
+  @@index([categoryId])
+  @@map("events")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-08 GalleryAlbum / ENT-09 GalleryPhoto
+// ─────────────────────────────────────────────────────────────────────────
+
+model GalleryAlbum {
+  id              String    @id @default(uuid())
+  title_en        String
+  title_ta        String?
+  category        String?
+  coverImage      String?
+  date            DateTime? @db.Date
+  description_en  String?
+  description_ta  String?
+  deletedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  photos GalleryPhoto[]
+
+  @@map("gallery_albums")
+}
+
+model GalleryPhoto {
+  id         String       @id @default(uuid())
+  albumId    String
+  album      GalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Restrict)
+  imageUrl   String
+  caption_en String?
+  caption_ta String?
+  sortOrder  Int          @default(0)
+  deletedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([albumId])
+  @@map("gallery_photos")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-10 Video
+// ─────────────────────────────────────────────────────────────────────────
+
+model Video {
+  id              String        @id @default(uuid())
+  title_en        String
+  title_ta        String?
+  videoUrl        String
+  thumbnail       String?
+  description_en  String?
+  description_ta  String?
+  category        String?
+  publishedAt     DateTime?
+  status          ContentStatus @default(draft)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("videos")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-11 DonationPurpose
+// ─────────────────────────────────────────────────────────────────────────
+
+model DonationPurpose {
+  id        String   @id @default(uuid())
+  name_en   String   @unique
+  name_ta   String?
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  donations Donation[]
+
+  @@map("donation_purposes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-12 Donation (FINANCIAL — never hard-deleted)
+// ─────────────────────────────────────────────────────────────────────────
+
+model Donation {
+  id       String         @id @default(uuid())
+  donorName String
+  mobile   String
+  email    String?
+  address  String?
+  pan      String?
+  amount   Decimal        @db.Decimal(12, 2)
+  purposeId String
+  purpose  DonationPurpose @relation(fields: [purposeId], references: [id], onDelete: Restrict)
+  anonymous Boolean        @default(false)
+  status   DonationStatus  @default(pending)
+  donationType DonationType @default(cash_online)
+  valuationNote String?
+  recordedByAdminId String?
+  recordedByAdmin  AdminUser? @relation("DonationRecordedBy", fields: [recordedByAdminId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments Payment[]
+  receipt  Receipt?
+
+  @@index([mobile])
+  @@index([createdAt])
+  @@index([status])
+  @@map("donations")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-13 Payment (FINANCIAL — never hard-deleted; cash_online donations only)
+// ─────────────────────────────────────────────────────────────────────────
+
+model Payment {
+  id                 String              @id @default(uuid())
+  donationId         String
+  donation           Donation            @relation(fields: [donationId], references: [id], onDelete: Restrict)
+  provider           PaymentProviderName
+  providerOrderId    String
+  providerPaymentId  String?
+  providerSignature  String?
+  verifiedAt         DateTime?
+  rawWebhookPayload  Json?
+  status             PaymentStatus       @default(initiated)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, providerOrderId])
+  @@index([donationId])
+  @@map("payments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-14 Receipt (FINANCIAL — never hard-deleted, immutable after issue)
+// ─────────────────────────────────────────────────────────────────────────
+
+model Receipt {
+  id               String     @id @default(uuid())
+  donationId       String     @unique
+  donation         Donation   @relation(fields: [donationId], references: [id], onDelete: Restrict)
+  receiptNumber    String     @unique
+  issuedAt         DateTime   @default(now())
+  issuedByAdminId  String?
+  issuedByAdmin    AdminUser? @relation("ReceiptIssuedBy", fields: [issuedByAdminId], references: [id], onDelete: Restrict)
+  pdfUrl           String?
+  includes80GClause Boolean   @default(false)
+  // ^ RULE-015/RULE-DM snapshot: whether the 80G clause was printed at issuance time — does not
+  //   change retroactively if SiteSettings.is80GRegistered changes later (business_rules.md RULE-015 exception)
+
+  @@map("receipts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ReceiptCounter — RULE-DM-003 concurrency-safe FY-scoped sequence (shared
+// ledger across cash_online AND offline/in-kind donation types)
+// ─────────────────────────────────────────────────────────────────────────
+
+model ReceiptCounter {
+  fy      Int @id // financial-year start year, e.g. 2025 for FY 2025-26
+  lastSeq Int @default(0)
+
+  @@map("receipt_counters")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-15 AuditLog — append-only
+// ─────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String    @id @default(uuid())
+  actorId    String?
+  actor      AdminUser? @relation("AuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+  action     String
+  entityType String
+  entityId   String?
+  beforeJson Json?
+  afterJson  Json?
+  ipAddress  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt(sort: Desc)])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-16 ContactEnquiry
+// ─────────────────────────────────────────────────────────────────────────
+
+model ContactEnquiry {
+  id              String               @id @default(uuid())
+  name            String
+  mobile          String
+  email           String?
+  enquirerType    ContactEnquirerType
+  message         String
+  status          ContactEnquiryStatus @default(new)
+  handledByAdminId String?
+  handledByAdmin  AdminUser?           @relation("EnquiryHandledBy", fields: [handledByAdminId], references: [id], onDelete: Restrict)
+  deletedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("contact_enquiries")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-17 HistoryTimelineEntry
+// ─────────────────────────────────────────────────────────────────────────
+
+model HistoryTimelineEntry {
+  id             String             @id @default(uuid())
+  year           String
+  title_en       String
+  title_ta       String?
+  description_en String?
+  description_ta String?
+  image          String?
+  sortOrder      Int
+  status         HistoryEntryStatus @default(published)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("history_timeline_entries")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-18 Deity (CR-004)
+// ─────────────────────────────────────────────────────────────────────────
+
+model Deity {
+  id             String         @id @default(uuid())
+  name_en        String
+  name_ta        String?
+  description_en String?
+  description_ta String?
+  image          String?
+  sortOrder      Int            @default(0)
+  status         ActiveInactive @default(active)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("deities")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-19 FestivalTradition (CR-004)
+// ─────────────────────────────────────────────────────────────────────────
+
+model FestivalTradition {
+  id             String         @id @default(uuid())
+  name_en        String
+  name_ta        String?
+  description_en String?
+  description_ta String?
+  sortOrder      Int            @default(0)
+  status         ActiveInactive @default(active)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("festival_traditions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-20 WelfareProgram (CR-004)
+// ─────────────────────────────────────────────────────────────────────────
+
+model WelfareProgram {
+  id             String         @id @default(uuid())
+  name_en        String
+  name_ta        String?
+  description_en String?
+  description_ta String?
+  sortOrder      Int            @default(0)
+  status         ActiveInactive @default(active)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("welfare_programs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-21 MemberRequest (CR-004, MOD-07 Pangaligal)
+// ─────────────────────────────────────────────────────────────────────────
+
+model MemberRequest {
+  id                        String              @id @default(uuid())
+  requestType               MemberRequestType
+  pangaliName               String
+  familyRepresentativeName  String
+  mobile                    String
+  email                     String?
+  lineageBranch             String?
+  details                   String
+  status                    MemberRequestStatus @default(new)
+  handledByAdminId          String?
+  handledByAdmin            AdminUser?          @relation("MemberRequestHandledBy", fields: [handledByAdminId], references: [id], onDelete: Restrict)
+  adminNotes                String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([mobile])
+  @@map("member_requests")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENT-22 Document (CR-004, MOD-08 Documents & Transparency)
+// ─────────────────────────────────────────────────────────────────────────
+
+model Document {
+  id            String           @id @default(uuid())
+  title_en      String
+  title_ta      String?
+  category      DocumentCategory
+  fileUrl       String
+  publishedDate DateTime         @db.Date
+  status        DocumentStatus   @default(draft)
+  sortOrder     Int              @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category, status])
+  @@map("documents")
+}
