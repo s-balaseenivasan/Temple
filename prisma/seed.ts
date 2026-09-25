@@ -54,37 +54,26 @@ async function main() {
   });
 
   // ── First Super Admin (bootstrap) ─────────────────────────────────────
-  // Security review: never create admin accounts with the publicly known
-  // default password in production — require an explicit one.
-  if (process.env.NODE_ENV === "production" && !process.env.BOOTSTRAP_ADMIN_PASSWORD) {
-    throw new Error("Set BOOTSTRAP_ADMIN_PASSWORD before seeding a production database.");
+  // Any database that isn't on this machine is treated as production: no
+  // publicly known default password, no demo fixtures, no second test
+  // account — regardless of NODE_ENV, which isn't reliably set when the seed
+  // is run by hand against a hosted database.
+  const isLocalDb = /@(localhost|127\.0\.0\.1)[:/]/.test(process.env.DATABASE_URL ?? "");
+  const seedDemo = process.env.SEED_DEMO_DATA ? process.env.SEED_DEMO_DATA === "true" : isLocalDb;
+  if (!isLocalDb && !process.env.BOOTSTRAP_ADMIN_PASSWORD) {
+    throw new Error("Set BOOTSTRAP_ADMIN_PASSWORD (and BOOTSTRAP_ADMIN_EMAIL) before seeding a hosted database.");
   }
+  const bootstrapEmail = process.env.BOOTSTRAP_ADMIN_EMAIL ?? "admin@temple.local";
   const bootstrapPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "ChangeMe!12345";
   const passwordHash = await bcrypt.hash(bootstrapPassword, 12);
-  const superAdmin = await prisma.adminUser.upsert({
-    where: { email: "admin@temple.local" },
+  await prisma.adminUser.upsert({
+    where: { email: bootstrapEmail },
     update: {},
     create: {
       name: "Super Admin",
-      email: "admin@temple.local",
+      email: bootstrapEmail,
       passwordHash,
       role: "SuperAdmin",
-      status: "active",
-    },
-  });
-
-  // Second seeded account so PERM-000..025 role restrictions are actually
-  // testable (Super-Admin-only actions, etc.) rather than only assumed from
-  // the code — see IMPLEMENTATION_PROGRESS.md, this was a real verification gap.
-  const templeAdminPasswordHash = await bcrypt.hash(bootstrapPassword, 12);
-  const templeAdmin = await prisma.adminUser.upsert({
-    where: { email: "office@temple.local" },
-    update: {},
-    create: {
-      name: "Temple Office Admin",
-      email: "office@temple.local",
-      passwordHash: templeAdminPasswordHash,
-      role: "TempleAdmin",
       status: "active",
     },
   });
@@ -255,6 +244,28 @@ async function main() {
     const existing = await prisma.welfareProgram.findFirst({ where: { name_en: w.name_en } });
     if (!existing) await prisma.welfareProgram.create({ data: w });
   }
+
+  if (!seedDemo) {
+    console.log(`Seed complete (real content only). Super Admin: ${bootstrapEmail}`);
+    return;
+  }
+
+  // Second seeded account so PERM-000..025 role restrictions are actually
+  // testable (Super-Admin-only actions, etc.) rather than only assumed from
+  // the code — see IMPLEMENTATION_PROGRESS.md, this was a real verification gap.
+  // Demo-only: it's also the author/recorder of the fixtures below.
+  const templeAdminPasswordHash = await bcrypt.hash(bootstrapPassword, 12);
+  const templeAdmin = await prisma.adminUser.upsert({
+    where: { email: "office@temple.local" },
+    update: {},
+    create: {
+      name: "Temple Office Admin",
+      email: "office@temple.local",
+      passwordHash: templeAdminPasswordHash,
+      role: "TempleAdmin",
+      status: "active",
+    },
+  });
 
   // ── Demo/test-fixture data below ───────────────────────────────────────
   // Everything above this line is real content sourced from the blueprint
@@ -556,9 +567,9 @@ async function main() {
     }
   }
 
-  console.log("Seed complete.");
-  console.log(`Bootstrap Super Admin: admin@temple.local / ${bootstrapPassword} (CHANGE THIS after first login)`);
-  console.log(`Bootstrap Temple Admin: office@temple.local / ${bootstrapPassword} (CHANGE THIS after first login)`);
+  // Never echo the password: on a host this lands in persistent build/shell logs.
+  console.log("Seed complete (with demo data).");
+  console.log(`Super Admin: ${bootstrapEmail} | Temple Admin: office@temple.local — change the default passwords after first login.`);
 }
 
 main()

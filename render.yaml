@@ -1,0 +1,88 @@
+# Render Blueprint — the whole Next.js app (pages + API) runs here as ONE web
+# service. The Hostinger subdomain is pointed at it with a DNS CNAME record;
+# nothing is uploaded to Hostinger. (The pages render on the server and query
+# the database directly, so they can't be split off onto static hosting.)
+#
+# Values marked `sync: false` are prompted for in the Render dashboard when the
+# Blueprint is first applied — they are never stored in this file.
+
+services:
+  - type: web
+    name: temple
+    runtime: node
+    # Starter or above: free instances sleep after 15 minutes idle and can't
+    # have a persistent disk (needed for receipt PDFs, below).
+    plan: starter
+    region: singapore
+    buildCommand: npm ci && npx prisma generate && npm run build
+    # Applies pending migrations before each new version goes live.
+    preDeployCommand: npx prisma migrate deploy
+    startCommand: npm start
+    healthCheckPath: /
+    # Receipt PDFs are written to <app>/.data/receipts. Render's normal
+    # filesystem is wiped on every deploy, so mount a persistent disk there.
+    disk:
+      name: data
+      mountPath: /opt/render/project/src/.data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: temple-db
+          property: connectionString
+      - key: AUTH_SECRET
+        generateValue: true
+      # The public address (used for password-reset links and sign-in
+      # callbacks). No trailing slash — links are built as `${NEXTAUTH_URL}/admin/...`.
+      - key: NEXTAUTH_URL
+        value: https://temple.jaivexa.com
+
+      # Payments — mock payments are refused in production, so online
+      # donations need a real gateway configured here.
+      - key: PAYMENT_PROVIDER
+        value: razorpay
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+
+      # Email (password reset)
+      - key: EMAIL_PROVIDER
+        value: smtp
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+
+      # Image uploads
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
+      # Only read by `npx prisma db seed` (run once from the Render Shell).
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        value: admin@jaivexa.com
+      # Entered in the Render dashboard only — never committed.
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+
+databases:
+  - name: temple-db
+    databaseName: temple
+    user: temple
+    plan: basic-256mb
+    region: singapore
+    postgresMajorVersion: "16"
