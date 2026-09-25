@@ -50,19 +50,9 @@ services:
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
 
-      # Email (password reset)
-      - key: EMAIL_PROVIDER
-        value: smtp
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
-      - key: SMTP_FROM
-        sync: false
+      # Email (password reset) — not configured: no mailbox yet. Reset emails
+      # are skipped; to enable later set EMAIL_PROVIDER=smtp + SMTP_HOST,
+      # SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM in the dashboard.
 
       # Image uploads
       - key: CLOUDINARY_CLOUD_NAME
